@@ -162,7 +162,6 @@ public class LSMVJsonGen {
             Set<List<Integer>> a = enumerate_helper(leftCopy_2, rightCopy_2);
 
             // Return result
-            //Set<List<Integer>> returnList = new TreeSet<>(new CompareSubSets());
             Set<List<Integer>> returnList = new HashSet<>();
             returnList.addAll(a);
             returnList.addAll(b);
@@ -175,7 +174,7 @@ public class LSMVJsonGen {
         return LSMVJsonGen.enumerate_helper(new ArrayList<>(), listOfNumbers);
     }
 
-    public static ValueModelDraw create_lsvm_draw(List<ValueBidder> bidders) {
+    public static ValueModelDraw create_lsvm_draw(List<ValueBidder> bidders, Map<Integer, Set<Integer>> ignore_licenses) {
         // Data structures to collect results
         List<BidderValues> lsvmBidderValues = new ArrayList<>();
 
@@ -185,6 +184,12 @@ public class LSMVJsonGen {
             // Licenses are given as Long. Collect them in a list of integers so that we can enumerate over them.
             List<Integer> bidders_licenses = new ArrayList<>();
             for (Long k : bidder.getBaseValues().keySet()) {
+                // Check which licenses to ignore.
+                if (ignore_licenses.containsKey((int) bidder.getId()) &&
+                        ignore_licenses.get((int) bidder.getId()) != null &&
+                        ignore_licenses.get((int) bidder.getId()).contains(k.intValue())) {
+                    continue;
+                }
                 bidders_licenses.add(k.intValue());
             }
 
@@ -212,8 +217,8 @@ public class LSMVJsonGen {
         // Get the model type.
         String model_type = args[0];
 
-        if (!model_type.equals("LSVM") && !model_type.equals("GSVM")) {
-            throw new Exception("Model type must be either LSVM of GSVM");
+        if (!model_type.equals("LSVM") && !model_type.equals("LSVM2") && !model_type.equals("GSVM")) {
+            throw new Exception("Model type must be either LSVM, LSVM2 or GSVM");
         }
 
         // Get the output file location.
@@ -225,7 +230,7 @@ public class LSMVJsonGen {
         }
 
         List<ValueBidder> valueBidders = new ArrayList<>();
-        if (model_type.equals("LSVM")) {
+        if (model_type.equals("LSVM") || model_type.equals("LSVM2")) {
             // Create LSVM model.
             LocalSynergyValueModel lsvm = new LocalSynergyValueModel();
             LSVMWorld lsvmWorld = lsvm.createWorld();
@@ -245,9 +250,22 @@ public class LSMVJsonGen {
             }
         }
 
+        // Create ignore map. Hard-coded for LSVM2, for the moment.
+        Map<Integer, Set<Integer>> ignore_licenses = new HashMap<>();
+        if (model_type.equals("LSVM2")) {
+            ignore_licenses.put(0, new HashSet<>() {{
+                add(0);
+                add(5);
+                add(6);
+                add(11);
+                add(12);
+                add(17);
+            }});
+        }
+
         // Create and save JSON file.
         Gson gson = new GsonBuilder().setPrettyPrinting().create();
-        String json_lsvm_draw = gson.toJson(create_lsvm_draw(valueBidders));
+        String json_lsvm_draw = gson.toJson(create_lsvm_draw(valueBidders, ignore_licenses));
         PrintWriter out = new PrintWriter(jsonOutputFileLocation);
         out.println(json_lsvm_draw);
         out.close();
